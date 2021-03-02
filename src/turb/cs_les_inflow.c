@@ -381,9 +381,9 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
 
     inlet->initialize = 0;
 
-    BFT_FREE(eps_r);
+    BFT_FREE(eps_r);  /* Free allocated memory */
 
-    /* Rescaling of the synthetic fluctuations by the statistics */
+    /* Rescaling of the synthetic fluctuations by the statistics 【通过统计数据重新调整合成脉动】*/
     /*-----------------------------------------------------------*/
 
     if (inlet->type == CS_INFLOW_SEM){
@@ -425,13 +425,13 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
       inflowsem->volume_mode=-1;
     }
 
-    /* Boundary conditions */
+    /* Boundary conditions 【边界条件】*/
     /*---------------------*/
 
     int var_id_key = cs_field_key_id("variable_id");
-    int var_id = cs_field_get_key_int(CS_F_(vel), var_id_key) - 1;
+    int var_id = cs_field_get_key_int(CS_F_(vel), var_id_key) - 1;  /* cs_field_get_key_int：return a integer value for a given key associated with a field */
 
-    cs_real_t *rcodclu = rcodcl + var_id*n_b_faces;
+    cs_real_t *rcodclu = rcodcl + var_id*n_b_faces;   /* rcodcl[] <-> boundary conditions array 【为什么是这样定义的呢？】*/   
     cs_real_t *rcodclv = rcodclu + n_b_faces;
     cs_real_t *rcodclw = rcodclv + n_b_faces;
 
