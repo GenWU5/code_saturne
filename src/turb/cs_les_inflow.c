@@ -231,13 +231,13 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
     cs_inlet_t *inlet = cs_glob_inflow_inlet_array[inlet_id];
 
     cs_user_les_inflow_update(inlet->zone,
-                              inlet->vel_m,
-                              &(inlet->k_r),
-                              &(inlet->eps_r));
+                              inlet->vel_m,       /* Mean velocity */
+                              &(inlet->k_r),      /* Level of energy */
+                              &(inlet->eps_r));   /* Level of dissipation rate */
 
     cs_real_3_t *vel_m_l = NULL;
-    cs_real_6_t *rij_l = NULL;
-    cs_real_t   *eps_r = NULL;
+    cs_real_6_t *rij_l = NULL;  /* Reynolds stresses at each point, cs_real_6_t = vector of 6 floating-point values */
+    cs_real_t   *eps_r = NULL;  /* Dissipation rate at each point */
 
     cs_real_3_t *fluctuations = NULL;
 
@@ -246,17 +246,18 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
     wt_start  = cs_timer_wtime();
     cpu_start = cs_timer_cpu_time();
 
-    cs_lnum_t n_elts = inlet->zone->n_elts;
-    const cs_lnum_t *elt_ids = inlet->zone->elt_ids;
-
+    cs_lnum_t n_elts = inlet->zone->n_elts;             /* n_elts = local number of elements */
+    const cs_lnum_t *elt_ids = inlet->zone->elt_ids;    /* 指针 elt_ids = associated element ids */
+    
     /* Mean velocity profile, one-point statistics and dissipation rate */
     /*------------------------------------------------------------------*/
 
-    BFT_MALLOC(vel_m_l, n_elts, cs_real_3_t);
+    BFT_MALLOC(vel_m_l, n_elts, cs_real_3_t);   /* pointer to allocated memory, number of elements, element type */
     BFT_MALLOC(rij_l, n_elts, cs_real_6_t);
     BFT_MALLOC(eps_r, n_elts, cs_real_t);
 
-    /* Initialization by the turbulence scales given by the user */
+    /* Initialization by the turbulence scales given by the user 【由用户给定的湍流尺度进行初始化】*/
+    /* cs_lnum_t i = local mesh entity id */
 
     for (cs_lnum_t i = 0; i < n_elts; i++) {
 
@@ -264,29 +265,29 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
         vel_m_l[i][coo_id] = inlet->vel_m[coo_id];
 
       for (int coo_id = 0; coo_id < 3; coo_id++)
-        rij_l[i][coo_id] = two_third*inlet->k_r;
+        rij_l[i][coo_id] = two_third*inlet->k_r;    /* 还是一种2/3的关系 【疑问？】*/
 
       for (int coo_id = 3; coo_id < 6; coo_id++)
-        rij_l[i][coo_id] = 0.;
+        rij_l[i][coo_id] = 0.;                       /* 为什么这里等于0 【疑问？】*/
 
       eps_r[i] = inlet->eps_r;
 
     }
 
-    /* Modification by the user */
+    /* Modification by the user 【用户修改】*/
 
     cs_user_les_inflow_advanced(inlet->zone,
                                 vel_m_l,
                                 rij_l,
                                 eps_r);
 
-    /* Generation of the synthetic turbulence */
+    /* Generation of the synthetic turbulence 【合成湍流的产生】*/
     /*----------------------------------------*/
 
     BFT_MALLOC(fluctuations, n_elts, cs_real_3_t);
     cs_array_set_value_real(n_elts, 3, 0, (cs_real_t *)fluctuations);
 
-    switch(inlet->type) {
+    switch(inlet->type) {               /* 在不同的case中进行switch，然后break */
 
     case CS_INFLOW_LAMINAR:
       break;
@@ -311,12 +312,12 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
                        "SEM INFO, inlet \"%d\" \n\n"), inlet_id);
 
         cs_inflow_sem_t *inflowsem = (cs_inflow_sem_t *)inlet->inflow;
-        if (inflowsem->volume_mode == 1){
+        if (inflowsem->volume_mode == 1){                               /* SEM volume mode 开启 */
           cs_real_t dissiprate = eps_r[0];
           cs_lnum_t n_points = cs_glob_mesh->n_cells;
           cs_real_t *point_weight = NULL;
 
-          BFT_REALLOC(rij_l, n_cells, cs_real_6_t);
+          BFT_REALLOC(rij_l, n_cells, cs_real_6_t);                   /* pointer to allocated memory, number of elements, element type */
           for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
             for (cs_lnum_t j = 0; j < 3; j++)
               rij_l[cell_id][j] = two_third*inlet->k_r;
@@ -325,10 +326,10 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
           }
 
           BFT_REALLOC(vel_m_l, n_cells, cs_real_3_t);
-          cs_array_set_value_real(n_cells, 3, 0, (cs_real_t *)vel_m_l);
+          cs_array_set_value_real(n_cells, 3, 0, (cs_real_t *)vel_m_l);   /* cs_array_set_value_real是？函数？ */
 
           BFT_REALLOC(eps_r, n_points, cs_real_t);
-          cs_array_set_value_real(n_cells, 1, dissiprate, eps_r);
+          cs_array_set_value_real(n_cells, 1, dissiprate, eps_r);         /* dissiprate = eps_r[0] */
 
           cs_real_3_t *point_coordinates = NULL;
           BFT_MALLOC(point_coordinates, n_cells, cs_real_3_t);
@@ -340,7 +341,7 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
           BFT_REALLOC(fluctuations, n_points, cs_real_3_t);
           cs_array_set_value_real(n_cells, 3, 0, (cs_real_t *)fluctuations);
 
-          cs_les_synthetic_eddy_method(cs_glob_mesh->n_cells,
+          cs_les_synthetic_eddy_method(cs_glob_mesh->n_cells,                        /*【大涡模拟-合成涡】*/
                                        elt_ids,
                                        point_coordinates,
                                        point_weight,
@@ -353,6 +354,9 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
                                        eps_r,
                                        fluctuations);
         }
+        
+        /*------*/
+        
         else {
           cs_les_synthetic_eddy_method(n_elts,
                                        elt_ids,
