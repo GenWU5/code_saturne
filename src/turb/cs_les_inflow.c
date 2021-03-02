@@ -137,7 +137,7 @@ typedef struct _cs_inflow_batten_t {
 
 } cs_inflow_batten_t;
 
-/* Synthetic Eddy Method (SEM) */
+/* Synthetic Eddy Method (SEM) 合成涡方法*/
 /*-----------------------------*/
 
 typedef struct {
