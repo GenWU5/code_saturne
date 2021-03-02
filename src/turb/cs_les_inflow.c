@@ -177,298 +177,26 @@ static int   _n_sem_vol_restart_structures = 50;
  * Generation of synthetic turbulence via a Gaussian random method.
  *
  * parameters:
- *   n_points       --> Local number of points where turbulence is generated
+ *   n_points       --> Local number of points where turbulence is generated 
  *   fluctuations   <-- Velocity fluctuations generated
  *----------------------------------------------------------------------------*/
 
 static void
-_random_method(cs_lnum_t    n_points,
-               cs_real_3_t  fluctuations[])
+_random_method(cs_lnum_t    n_points,            
+               cs_real_3_t  fluctuations[])     /* cs_real_3_t=vector of 3 floating-point values, cs_lnum_t =local mesh entity id*/
 {
   cs_real_t    random[3];
 
   for (cs_lnum_t point_id = 0; point_id < n_points; point_id++) {
-    cs_random_normal(3, random);
+    cs_random_normal(3, random);                                  /*【疑惑】*/
     for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++)
-      fluctuations[point_id][coo_id] = random[coo_id];
+      fluctuations[point_id][coo_id] = random[coo_id];            /*【疑惑】*/
   }
 }
 
 /*----------------------------------------------------------------------------
- * Generation of synthetic turbulence via the Batten method.
- *
- * parameters:
- *   n_points          --> Local number of points where turbulence is generated
- *   point_coordinates --> Coordinates of the points
- *   initialize        --> Indicator of initialization
- *   inflow            --> Specific structure for Batten method
- *   time              --> Current time at the present iteration
- *   rij_l             --> Reynolds stresses at each point
- *   eps_r             --> Dissipation rate at each point
- *   fluctuations      <-- Velocity fluctuations generated at each point
+ * 在这里我删去了关于batten method的方法
  *----------------------------------------------------------------------------*/
-
-static void
-_batten_method(cs_lnum_t            n_points,
-               const cs_real_3_t   *point_coordinates,
-               int                  initialize,
-               cs_inflow_batten_t  *inflow,
-               cs_real_t            time,
-               const cs_real_6_t   *rij_l,
-               const cs_real_t     *eps_r,
-               cs_real_3_t         *fluctuations)
-{
-  cs_lnum_t  point_id;
-
-  int       coo_id;
-  int       mode_id;
-
-  const cs_real_t  two_pi              = 2.*acos(-1.);
-  const cs_real_t  sqrt_three_half     = sqrt(1.5);
-  const cs_real_t  sqrt_two_by_n_modes = sqrt(2./inflow->n_modes);
-
-  const cs_real_t *frequency = inflow->frequency;
-  const cs_real_3_t *wave_vector = (const cs_real_3_t *)inflow->wave_vector;
-  const cs_real_3_t *amplitude_cos = (const cs_real_3_t *)inflow->amplitude_cos;
-  const cs_real_3_t *amplitude_sin = (const cs_real_3_t *)inflow->amplitude_sin;
-
-  if (initialize == 1) {
-
-    const int     three_n_modes   = 3*inflow->n_modes;
-    const cs_real_t  one_by_sqrt_two = sqrt(0.5);
-
-    if (cs_glob_rank_id <= 0) {
-
-      /* Random generation of the n_modes frequencies following a normal
-         law with a mean of 1 and a variance of 1 (i.e. N(1,1)). */
-
-      cs_random_normal(inflow->n_modes, inflow->frequency);
-
-      for (mode_id = 0; mode_id < inflow->n_modes; mode_id++)
-        inflow->frequency[mode_id] += 1.;
-
-      /* Random generation of the n_modes wave vectors following a normal
-         law with a mean of 0 and a variance of 0.5 (i.e. N(0,1/2)). */
-
-      cs_random_normal(three_n_modes, (cs_real_t *)inflow->wave_vector);
-
-      for (mode_id = 0; mode_id < inflow->n_modes; mode_id++) {
-        for (coo_id = 0; coo_id < 3; coo_id++)
-          inflow->wave_vector[mode_id][coo_id] *= one_by_sqrt_two;
-      }
-
-      /* Generation of the n_modes amplitude vector for both the sines and
-         the cosines. */
-
-      for (mode_id = 0; mode_id < inflow->n_modes; mode_id++) {
-
-        cs_real_t  rcos[3];
-        cs_real_t  rsin[3];
-
-        /* Temporary random vectors following a normal law N(0,1) necessary
-           to compute the random amplitudes of the sines and cosines */
-
-        cs_random_normal(3, rcos);
-        cs_random_normal(3, rsin);
-
-        cs_math_3_cross_product(rcos,
-                                inflow->wave_vector[mode_id],
-                                inflow->amplitude_cos[mode_id]);
-
-        cs_math_3_cross_product(rsin,
-                                inflow->wave_vector[mode_id],
-                                inflow->amplitude_sin[mode_id]);
-
-      }
-
-    }
-
-#if defined(HAVE_MPI)
-
-    if (cs_glob_rank_id >= 0) {
-
-      MPI_Bcast(inflow->frequency,   inflow->n_modes, CS_MPI_REAL, 0,
-                cs_glob_mpi_comm);
-      MPI_Bcast(inflow->wave_vector,   three_n_modes, CS_MPI_REAL, 0,
-                cs_glob_mpi_comm);
-      MPI_Bcast(inflow->amplitude_cos, three_n_modes, CS_MPI_REAL, 0,
-                cs_glob_mpi_comm);
-      MPI_Bcast(inflow->amplitude_sin, three_n_modes, CS_MPI_REAL, 0,
-                cs_glob_mpi_comm);
-
-    }
-
-#endif
-
-  }
-
-  for (point_id = 0; point_id < n_points; point_id++) {
-
-    cs_real_t spectral_time;
-    cs_real_t spectral_coordinates[3];
-
-    /*
-      Compute integral scales of turbulence :
-      -  Tb = k / epsilon
-      -  Vb = sqrt(k)
-      -  Lb = Tb * Vb     ( = k^(3/2) / epsilon )
-    */
-
-    cs_real_t k_r = 0.5 * cs_math_6_trace(rij_l[point_id]);
-
-    cs_real_t time_scale     = k_r / eps_r[point_id];
-    cs_real_t velocity_scale = sqrt(k_r);
-    cs_real_t lenght_scale   = time_scale * velocity_scale;
-
-    /* Spectral position of the point in space and time */
-
-    spectral_time = two_pi * time / time_scale;
-
-    for (coo_id = 0; coo_id < 3; coo_id++) {
-      spectral_coordinates[coo_id]
-        = two_pi * point_coordinates[point_id][coo_id] / lenght_scale;
-    }
-
-    /* Compute the velocity fluctuations */
-
-    for (mode_id = 0; mode_id < inflow->n_modes; mode_id++) {
-
-      cs_real_t mod_wave_vector[3];
-
-      cs_real_t norm_wave_vector
-        = cs_math_3_norm((cs_real_t *)(wave_vector + mode_id));
-
-      cs_real_t spectral_velocity_scale
-        = cs_math_3_sym_33_3_dot_product(wave_vector[mode_id],
-                                         rij_l[point_id],
-                                         wave_vector[mode_id]);
-
-      spectral_velocity_scale =   sqrt_three_half*sqrt(spectral_velocity_scale)
-                                / norm_wave_vector;
-
-      for (coo_id = 0; coo_id < 3; coo_id++) {
-        mod_wave_vector[coo_id]
-          =   wave_vector[mode_id][coo_id]
-            * velocity_scale / spectral_velocity_scale;
-      }
-
-      cs_real_t dxpot
-        =    cs_math_3_dot_product(mod_wave_vector, spectral_coordinates)
-          +  frequency[mode_id]*spectral_time;
-
-      for (coo_id = 0; coo_id < 3; coo_id++) {
-        fluctuations[point_id][coo_id]
-          +=   amplitude_cos[mode_id][coo_id]*cos(dxpot)
-             + amplitude_sin[mode_id][coo_id]*sin(dxpot);
-      }
-
-    }
-
-    for (coo_id = 0; coo_id < 3; coo_id++)
-      fluctuations[point_id][coo_id] *= sqrt_two_by_n_modes;
-
-  }
-}
-
-/*----------------------------------------------------------------------------
- * Modify the normal component of the fluctuations such that the mass flowrate
- * of the fluctuating field is zero.
- *
- * parameters:
- *   n_points          --> Local number of points where turbulence is generated
- *   face_ids          --> Local id of inlet boundary faces
- *   fluctuations      <-> Velocity fluctuations
- *----------------------------------------------------------------------------*/
-
-static void
-_rescale_flowrate(cs_lnum_t         n_points,
-                  const cs_lnum_t   face_ids[],
-                  cs_real_3_t       fluctuations[])
-{
-  /* Compute the mass flow rate of the fluctuating field */
-  /* and the area of the inlet */
-
-  cs_lnum_t point_id;
-
-  cs_real_t mass_flow_rate = 0., mass_flow_rate_g = 0.;
-  cs_real_t area = 0., area_g = 0.;
-  cs_real_t *density = CS_F_(rho)->val;
-  const cs_mesh_t  *mesh = cs_glob_mesh;
-  const cs_mesh_quantities_t  *mesh_q = cs_glob_mesh_quantities;
-
-  for (point_id = 0; point_id < n_points; point_id++) {
-
-    cs_lnum_t b_face_id = face_ids[point_id];
-    cs_lnum_t cell_id = mesh->b_face_cells[b_face_id];
-
-    const cs_real_t *fluct = fluctuations[point_id];
-    const cs_real_t *normal = mesh_q->b_face_normal + b_face_id*3;
-
-    cs_real_t dot_product = cs_math_3_dot_product(fluct, normal);
-
-    mass_flow_rate += density[cell_id]*dot_product;
-    area = area + mesh_q->b_face_surf[b_face_id];
-
-  }
-  mass_flow_rate_g = mass_flow_rate;
-  area_g = area;
-
-#if defined(HAVE_MPI)
-  if (cs_glob_rank_id >= 0) {
-    MPI_Allreduce(&mass_flow_rate, &mass_flow_rate_g, 1, CS_MPI_REAL, MPI_SUM,
-                  cs_glob_mpi_comm);
-    MPI_Allreduce(&area, &area_g, 1, CS_MPI_REAL, MPI_SUM, cs_glob_mpi_comm);
-  }
-#endif
-
-  for (point_id = 0; point_id < n_points; point_id++) {
-
-    /* Decompose the fluctuation in a local coordinate system */
-    /* (not valid for warped boundary faces) */
-
-    int coo_id;
-    cs_lnum_t b_face_id = face_ids[point_id];
-    cs_lnum_t cell_id = mesh->b_face_cells[b_face_id];
-
-    cs_lnum_t idx = mesh->b_face_vtx_idx[b_face_id];
-    cs_lnum_t vtx_id1 = mesh->b_face_vtx_lst[idx];
-    cs_lnum_t vtx_id2 = mesh->b_face_vtx_lst[idx+1];
-
-    cs_real_t normal_unit[3], tangent_unit1[3], tangent_unit2[3];
-
-    const cs_real_t *fluct = fluctuations[point_id];
-
-    for (coo_id = 0; coo_id < 3; coo_id++) {
-      normal_unit[coo_id] = mesh_q->b_face_normal[b_face_id*3 + coo_id];
-      normal_unit[coo_id] /= mesh_q->b_face_surf[b_face_id];
-    }
-
-    for (coo_id = 0; coo_id < 3; coo_id++) {
-      tangent_unit1[coo_id] = mesh->vtx_coord[3*vtx_id1 + coo_id]
-                            - mesh->vtx_coord[3*vtx_id2 + coo_id];
-    }
-
-    cs_math_3_cross_product(normal_unit, tangent_unit1, tangent_unit2);
-    cs_math_3_normalize(tangent_unit1, tangent_unit1);
-    cs_math_3_normalize(tangent_unit2, tangent_unit2);
-
-    cs_real_t normal_comp = cs_math_3_dot_product(fluct, normal_unit);
-    cs_real_t tangent_comp1 = cs_math_3_dot_product(fluct, tangent_unit1);
-    cs_real_t tangent_comp2 = cs_math_3_dot_product(fluct, tangent_unit2);
-
-    /* Rescale the normal component and return in cartesian coordinates*/
-
-    normal_comp -= mass_flow_rate_g/(density[cell_id]*area_g);
-
-    for (coo_id = 0; coo_id < 3; coo_id++)
-      fluctuations[point_id][coo_id] =   normal_comp*normal_unit[coo_id]
-                                       + tangent_comp1*tangent_unit1[coo_id]
-                                       + tangent_comp2*tangent_unit2[coo_id];
-
-  }
-}
-
-/*! (DOXYGEN_SHOULD_SKIP_THIS) \endcond */
 
 /*============================================================================
  *  Public function definitions for Fortran API
@@ -478,7 +206,7 @@ _rescale_flowrate(cs_lnum_t         n_points,
  * General synthetic turbulence generation
  *----------------------------------------------------------------------------*/
 
-void CS_PROCF(synthe, SYNTHE)
+void CS_PROCF(synthe, SYNTHE)          /*函数*/
 (
  const cs_real_t *const ttcabs,    /* --> current physical time               */
  const cs_real_t        dt[],      /* --> time step                           */
@@ -489,7 +217,7 @@ void CS_PROCF(synthe, SYNTHE)
 
   const cs_mesh_t  *mesh = cs_glob_mesh;
 
-  const cs_lnum_t  n_cells = mesh->n_cells;
+  const cs_lnum_t  n_cells = mesh->n_cells;     /* 箭头为结构体指针变量 */
   const cs_lnum_t  n_b_faces = mesh->n_b_faces;
 
   const cs_real_3_t *cell_cen
