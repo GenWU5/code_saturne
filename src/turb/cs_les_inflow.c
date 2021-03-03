@@ -1514,7 +1514,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
   /*-----------------------------------------------------*/
 
   for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++) {
-    box_min_coord[coo_id] =  HUGE_VAL;
+    box_min_coord[coo_id] =  HUGE_VAL;         /* HUGE_VAL=1.E+12 */
     box_max_coord[coo_id] = -HUGE_VAL;
   }
 
@@ -1556,9 +1556,9 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 #endif
 
   for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++)
-    box_length[coo_id] = box_max_coord[coo_id] - box_min_coord[coo_id];
+    box_length[coo_id] = box_max_coord[coo_id] - box_min_coord[coo_id];    /* 涡盒长度 */
 
-  box_volume = box_length[0]*box_length[1]*box_length[2];
+  box_volume = box_length[0]*box_length[1]*box_length[2];                  /* 涡盒体积 */
 
   if (verbosity > 0)
     bft_printf(_("Dimensions of the virtual box: \n"
@@ -1569,7 +1569,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
                box_length[1], box_min_coord[1], box_max_coord[1],
                box_length[2], box_min_coord[2], box_max_coord[2]);
 
-  /* Initialization of the eddy field */
+  /* Initialization of the eddy field 【涡流场的初始化】*/
   /*----------------------------------*/
 
   if (initialize == 1) {
@@ -1582,8 +1582,8 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 
         for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++) {
 
-          cs_random_uniform(1, &random);
-          inflow->energy[struct_id][coo_id] = (random < 0.5) ? -1. : 1.;
+          cs_random_uniform(1, &random);    /* Uniform distribution random number generator, 这里random前面为什么有个&？ */
+          inflow->energy[struct_id][coo_id] = (random < 0.5) ? -1. : 1.;      /* 【energy是取1或者-1吗？】 */
 
         }
 
@@ -1616,7 +1616,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 
   }
 
-  /* Estimation of the convection speed (with weighting by surface) */
+  /* Estimation of the convection speed (with weighting by surface)【对流速度的估计（按表面加权）】*/
   /*----------------------------------------------------------------*/
 
   cs_real_t *weight = NULL;
@@ -1648,7 +1648,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
   if (cs_glob_rank_id < 0)
 
     for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++)
-      vel_m[coo_id] /= weight_tot;
+      vel_m[coo_id] /= weight_tot;                    /* a/=b 就是说 a = a/b */
 
 #if defined(HAVE_MPI)
 
@@ -1667,17 +1667,17 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 
 #endif
 
-  /* Time evolution of the eddies */
+  /* Time evolution of the eddies 【时间演变】*/
   /*------------------------------*/
 
-  if (cs_glob_rank_id <= 0) {
+  if (cs_glob_rank_id <= 0) {     //int cs_glob_rank_id = -1 ？
 
     /* Time advancement of the eddies */
 
     for (int struct_id = 0; struct_id < inflow->n_structures; struct_id++) {
 
       for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++)
-        inflow->position[struct_id][coo_id] += vel_m[coo_id]*t_cur;
+        inflow->position[struct_id][coo_id] += vel_m[coo_id]*t_cur;  /* t_cur = current time */
 
     }
 
@@ -1690,26 +1690,26 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
       int new_struct = 0;
       int randomize[3] = {1, 1, 1};
 
-      /* If the eddy leaves the box by one side, one convects it */
+      /* If the eddy leaves the box by one side, one convects it 【如果涡流从一侧离开盒子，则将其对流】*/
 
       for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++) {
 
         if (inflow->position[struct_id][coo_id] < box_min_coord[coo_id]) {
           new_struct = 1;
           randomize[coo_id] = 0;
-          inflow->position[struct_id][coo_id] += box_length[coo_id];
+          inflow->position[struct_id][coo_id] += box_length[coo_id];       /* 如果小于盒子的min，移到另一侧 */
         }
         else if (inflow->position[struct_id][coo_id] > box_max_coord[coo_id]) {
           new_struct = 1;
           randomize[coo_id] = 0;
-          inflow->position[struct_id][coo_id] -= box_length[coo_id];
+          inflow->position[struct_id][coo_id] -= box_length[coo_id];     /* 如果大于盒子的max，反向移到另一侧 */
         }
 
       }
 
       if (new_struct == 1) {
 
-        /* The other directions are randomized */
+        /* The other directions are randomized 【其它方向随机】 */
 
         for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++) {
 
@@ -1721,7 +1721,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 
         }
 
-        /* New randomization of the energy */
+        /* New randomization of the energy 【能量也搞一个随机】*/
 
         for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++) {
 
@@ -1754,7 +1754,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 
 #endif
 
-  /* Computation of the eddy signal */
+  /* Computation of the eddy signal 【计算涡的信号】*/
   /*--------------------------------*/
 
   alpha = sqrt(box_volume / (double)inflow->n_structures);
@@ -1774,7 +1774,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
           && distance[1] < length_scale[point_id][1]
           && distance[2] < length_scale[point_id][2]) {
 
-        cs_real_t form_function = 1.;
+        cs_real_t form_function = 1.;    /* 形状函数 */
         for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++)
           form_function *=
             (1.-distance[coo_id]/length_scale[point_id][coo_id])
@@ -1798,7 +1798,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Rescale fluctuations by statistics following the Lund method.
+ * \brief Rescale fluctuations by statistics following the Lund method. 通过统计数据调整一下脉动
  *
  * One assumes that the statistics are interlaced and ordered as follows:
  *   <u'u'>  <v'v'>  <w'w'>  <u'v'>  <v'w'>  <u'w'>
@@ -1852,7 +1852,7 @@ cs_les_rescale_fluctuations(cs_lnum_t          n_points,
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Set number of structures used for volume SEM when
+ * \brief Set number of structures used for volume SEM when 从另一个湍流模型重新启动时，设置用于体积SEM的结构数
  *        restarting from another turbulence model.
  *
  * By default, a restart file is read if present, and a checkpoint written.
