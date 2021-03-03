@@ -581,8 +581,8 @@ cs_les_inflow_finalize(void)
       {
         cs_inflow_sem_t *inflow = (cs_inflow_sem_t *) inlet->inflow;
 
-        BFT_FREE(inflow->position);
-        BFT_FREE(inflow->energy);
+        BFT_FREE(inflow->position);  /* 位置 */
+        BFT_FREE(inflow->energy);    /* 能量 */
 
         BFT_FREE(inflow);
 
@@ -625,7 +625,7 @@ cs_les_inflow_finalize(void)
  * \param[out]  n_entities   number of structures or modes
  * \param[out]  verbosity    verbosity level
  * \param[out]  vel_r        reference mean velocity
- * \param[out]  k_r          reference turbulent kinetic energy
+ * \param[out]  k_r          reference turbulent kinetic energy   【r代表的reference】
  * \param[out]  eps_r        reference turbulent dissipation
  */
 /*----------------------------------------------------------------------------*/
@@ -645,7 +645,7 @@ cs_les_inflow_add_inlet(cs_les_inflow_type_t   type,
   bft_printf(_(" Definition of the LES inflow for zone \"%s\" \n"),
              zone->name);
 
-  const cs_mesh_quantities_t  *mq = cs_glob_mesh_quantities;
+  const cs_mesh_quantities_t  *mq = cs_glob_mesh_quantities; /* 网格质量 */
 
   /* Allocating inlet structures */
   /*-----------------------------*/
@@ -669,13 +669,13 @@ cs_les_inflow_add_inlet(cs_les_inflow_type_t   type,
     for (cs_lnum_t i = 0; i < n_elts; i++) {
       for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++)
         inlet->face_center[i][coo_id]
-          = mq->b_face_cog[face_ids[i]*3 + coo_id];
+          = mq->b_face_cog[face_ids[i]*3 + coo_id];     /*【为何都有*3+某个东西】*/
     }
 
     BFT_MALLOC(inlet->face_surface, n_elts, cs_real_t);
     for (cs_lnum_t i = 0; i < n_elts; i++)
       inlet->face_surface[i]
-        = cs_math_3_norm(mq->b_face_normal + face_ids[i]*3);
+        = cs_math_3_norm(mq->b_face_normal + face_ids[i]*3); /* cs_math_3_norm = Compute the euclidean norm of a vector of dimension 3 */
 
   }
 
@@ -696,7 +696,7 @@ cs_les_inflow_add_inlet(cs_les_inflow_type_t   type,
   /* Generation method of synthetic turbulence */
   /*-------------------------------------------*/
 
-  if (type > 3)
+  if (type > 3)           /* 【这里可能需要修改 加一个4 或者把某个替换掉】 */
     bft_error
       (__FILE__, __LINE__, 0,
        _("Invalid choice of synthetic turbulence generation method (%d).\n"
@@ -744,7 +744,7 @@ cs_les_inflow_add_inlet(cs_les_inflow_type_t   type,
 
   case CS_INFLOW_SEM:
     {
-      if (n_entities <= 0)
+      if (n_entities <= 0)                   /* 【严格为正】 */
         bft_error(__FILE__, __LINE__, 0,
                   _("The number of eddies for the SEM "
                     "must be strictly positive. %d is given here.\n"),
@@ -752,7 +752,7 @@ cs_les_inflow_add_inlet(cs_les_inflow_type_t   type,
 
       cs_inflow_sem_t *inflow;
       BFT_MALLOC(inflow, 1, cs_inflow_sem_t);
-      inflow->volume_mode = (volume_mode == true) ? 1 : 0;
+      inflow->volume_mode = (volume_mode == true) ? 1 : 0;     /* 条件运算符 */
       inflow->n_structures = n_entities;
 
       BFT_MALLOC(inflow->position, inflow->n_structures, cs_real_3_t);
@@ -784,7 +784,7 @@ cs_les_inflow_add_inlet(cs_les_inflow_type_t   type,
 }
 
 /*----------------------------------------------------------------------------
- * Read the restart file of les inflow module.
+ * Read the restart file of les inflow module.   【Restart部分】
  *----------------------------------------------------------------------------*/
 
 void
@@ -894,7 +894,7 @@ cs_les_synthetic_eddy_restart_read(void)
       if (inlet_id == 0)
         postfix[0] = '\0';
       else {
-        snprintf(postfix, 31, "_%d", inlet_id);
+        snprintf(postfix, 31, "_%d", inlet_id);   /* snprintf函数：inlet_id的前30位写进postfix*/
         postfix[31] = '\0';
       }
 
@@ -1331,7 +1331,7 @@ cs_les_synthetic_eddy_restart_write(void)
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Generation of synthetic turbulence via the Synthetic Eddy Method (SEM).
+ * \brief Generation of synthetic turbulence via the Synthetic Eddy Method (SEM).  【合成涡方法】
  *
  * \param[in]   n_points            local number of points where
  *                                  turbulence is generated
@@ -1363,7 +1363,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
                              const cs_real_t     eps_l[],
                              cs_real_3_t         fluctuations[])
 {
-  cs_real_t  alpha;
+  cs_real_t  alpha;           /* cs_real_t = floating-point value */
   cs_real_t  random = -1.;
 
   cs_real_t  vel_m[3];
@@ -1374,9 +1374,9 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
   cs_real_t  box_min_coord[3];
   cs_real_t  box_max_coord[3];
 
-  cs_gnum_t  count[3] = {0, 0, 0};
+  cs_gnum_t  count[3] = {0, 0, 0};  /* cs_gnum_t = global mesh entity number */
 
-  /* Computation of the characteristic scale of the synthetic eddies */
+  /* Computation of the characteristic scale of the synthetic eddies 【合成涡特征尺度的计算】*/
   /*-----------------------------------------------------------------*/
 
   cs_real_3_t  *length_scale;
@@ -1393,7 +1393,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 
         cs_real_t length_scale_min = -HUGE_VAL;
         length_scale_min = CS_MAX(length_scale_min,
-                           2.*CS_ABS(pow(mq->cell_vol[point_id + coo_id],
+                           2.*CS_ABS(pow(mq->cell_vol[point_id + coo_id],     /* pow求次幂函数，cell_vol^1/3，即是一边的边长 */
                                          1./3.)));
 
         length_scale[point_id][coo_id]
@@ -1417,21 +1417,21 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
   else{
     for (cs_lnum_t point_id = 0; point_id < n_points; point_id++) {
 
-      cs_lnum_t b_face_id = elt_ids[point_id];
-      cs_lnum_t cell_id = mesh->b_face_cells[b_face_id];
+      cs_lnum_t b_face_id = elt_ids[point_id];  /* elt_ids = associated element ids */
+      cs_lnum_t cell_id = mesh->b_face_cells[b_face_id];   /* boundary faces -> vertices connectivity */
 
       for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++) {
 
         cs_real_t length_scale_min = -HUGE_VAL;
 
-        for (cs_lnum_t j = mesh->b_face_vtx_idx[b_face_id];
+        for (cs_lnum_t j = mesh->b_face_vtx_idx[b_face_id];  /* boundary faces -> vertices index 顶点 */
              j < mesh->b_face_vtx_idx[b_face_id + 1];
              j++) {
           cs_lnum_t vtx_id = mesh->b_face_vtx_lst[j];
           length_scale_min
             = CS_MAX(length_scale_min,
                      2.*CS_ABS(mq->cell_cen[3*cell_id + coo_id]
-                               - mesh->vtx_coord[3*vtx_id + coo_id]));
+                               - mesh->vtx_coord[3*vtx_id + coo_id]));   /* 【？】*/
         }
 
         length_scale[point_id][coo_id]
@@ -1455,7 +1455,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
 
     char      direction[3] = "xyz";
 
-    bft_printf(_("Max. size of synthetic eddies:\n"));
+    bft_printf(_("Max. size of synthetic eddies:\n"));   /* 合成涡的最大尺寸 */
 
     for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++) {
 
@@ -1510,7 +1510,7 @@ cs_les_synthetic_eddy_method(cs_lnum_t           n_points,
     bft_printf(_("\n"));
   }
 
-  /* Definition of the box on which eddies are generated */
+  /* Definition of the box on which eddies are generated 【定义产生涡的盒】*/
   /*-----------------------------------------------------*/
 
   for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++) {
