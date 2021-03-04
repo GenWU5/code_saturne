@@ -235,9 +235,9 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
                               &(inlet->k_r),      /* Level of energy */
                               &(inlet->eps_r));   /* Level of dissipation rate */
 
-    cs_real_3_t *vel_m_l = NULL;
-    cs_real_6_t *rij_l = NULL;  /* Reynolds stresses at each point, cs_real_6_t = vector of 6 floating-point values */
-    cs_real_t   *eps_r = NULL;  /* Dissipation rate at each point */
+    cs_real_3_t *vel_m_l = NULL;  /* cs_real_3_t = vector of 3 floating-point values 3个浮点值的向量 */
+    cs_real_6_t *rij_l = NULL;    /* Reynolds stresses at each point, cs_real_6_t = vector of 6 floating-point values */
+    cs_real_t   *eps_r = NULL;    /* Dissipation rate at each point, reference? */
 
     cs_real_3_t *fluctuations = NULL;
 
@@ -257,7 +257,7 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
     BFT_MALLOC(eps_r, n_elts, cs_real_t);
 
     /* Initialization by the turbulence scales given by the user 【由用户给定的湍流尺度进行初始化】*/
-    /* cs_lnum_t i = local mesh entity id */
+    /* cs_lnum_t = local mesh entity id */
 
     for (cs_lnum_t i = 0; i < n_elts; i++) {
 
@@ -265,10 +265,10 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
         vel_m_l[i][coo_id] = inlet->vel_m[coo_id];
 
       for (int coo_id = 0; coo_id < 3; coo_id++)
-        rij_l[i][coo_id] = two_third*inlet->k_r;    /* 还是一种2/3的关系 【疑问？】*/
+        rij_l[i][coo_id] = two_third*inlet->k_r;    /* 还是一种2/3的关系 【各向同性】 coo_id=0,1,2 */
 
       for (int coo_id = 3; coo_id < 6; coo_id++)
-        rij_l[i][coo_id] = 0.;                       /* 为什么这里等于0 【疑问？】*/
+        rij_l[i][coo_id] = 0.;                       /* coo_id=3,4,5||雷诺应力6个独立的分量，11，22，33，12，13，23 */
 
       eps_r[i] = inlet->eps_r;
 
@@ -326,7 +326,7 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
           }
 
           BFT_REALLOC(vel_m_l, n_cells, cs_real_3_t);
-          cs_array_set_value_real(n_cells, 3, 0, (cs_real_t *)vel_m_l);   /* cs_array_set_value_real是？函数？ */
+          cs_array_set_value_real(n_cells, 3, 0, (cs_real_t *)vel_m_l);   /* cs_array_set_value_real是？*/
 
           BFT_REALLOC(eps_r, n_points, cs_real_t);
           cs_array_set_value_real(n_cells, 1, dissiprate, eps_r);         /* dissiprate = eps_r[0] */
