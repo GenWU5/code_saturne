@@ -147,6 +147,8 @@ cs_user_les_inflow_update(const cs_zone_t  *zone,
 {
   /*! [update_1] */
   if (strcmp(zone->name, "INLET_1") == 0) {
+    /*strcmp函数string compare(字符串比较)用于比较两个字符串并根据比较结果返回整数。
+    基本形式为strcmp(str1,str2)，若str1=str2，则返回零；若str1<str2，则返回负数；若str1>str2，则返回正数 */
     /* Velocity, turbulent kinetic energy and dissipation rate */
     vel_r[0] = 19.0;
     vel_r[1] = 0.0;
