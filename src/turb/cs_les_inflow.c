@@ -429,8 +429,9 @@ void CS_PROCF(synthe, SYNTHE)          /*函数*/
     /*---------------------*/
 
     int var_id_key = cs_field_key_id("variable_id");
-    int var_id = cs_field_get_key_int(CS_F_(vel), var_id_key) - 1;  /* cs_field_get_key_int：return a integer value for a given key associated with a field */
-
+    int var_id = cs_field_get_key_int(CS_F_(vel), var_id_key) - 1;  /* 为什么要减去一？cs_field_get_key_int：return a integer value for a given key associated with a field */
+    /* CS_F_ Macro used to return a field pointer by its enumerated value , vel=velocity */
+    
     cs_real_t *rcodclu = rcodcl + var_id*n_b_faces;   /* rcodcl[] <-> boundary conditions array 【为什么是这样定义的呢？】*/   
     cs_real_t *rcodclv = rcodclu + n_b_faces;
     cs_real_t *rcodclw = rcodclv + n_b_faces;
